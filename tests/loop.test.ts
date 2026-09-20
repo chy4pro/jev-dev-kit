@@ -6,7 +6,7 @@ interface World { screen: string; items: string[]; done: boolean }
 const answer = (choice: string, extra: Record<string, unknown> = {}, cross: { goal?: number; stuck?: number } = {}): JevResponse => ({
   model: 'test',
   answers: {
-    action: { choice, confidence: 0.9, probabilities: { [choice]: 0.9 } },
+    action: { choice, confidence: 0.9, probabilities: { [choice]: 0.9, [choice === 'BLOCKED' ? 'DONE' : 'BLOCKED']: 0.1 } },
     goal_done: { probability: cross.goal ?? 0.1 },
     stuck: { probability: cross.stuck ?? 0.1 },
     ...extra,
