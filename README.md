@@ -14,7 +14,7 @@ It contains no network code. You hand it a `JevClient`, which is any `(request) 
 ## Install
 
 ```bash
-npm install github:chy4pro/jev-dev-kit#v0.3.1
+npm install github:chy4pro/jev-dev-kit#v0.3.2
 ```
 
 Node 20+, TypeScript types included. Not on npm yet.
@@ -70,7 +70,7 @@ Also included: `runBatch` for fan-out judgments without a loop, and `shufflingCl
 
 ## Status
 
-0.3.1. The first consumer is [jev-for-chrome](https://github.com/chy4pro/jev-for-chrome), whose shared code this package grew out of. See [DESIGN.md](DESIGN.md) for the contract and the reasoning behind it.
+0.3.2. The first consumer is [jev-for-chrome](https://github.com/chy4pro/jev-for-chrome), whose shared code this package grew out of. See [DESIGN.md](DESIGN.md) for the contract and the reasoning behind it.
 
 ## License
 

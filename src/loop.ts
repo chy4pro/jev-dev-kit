@@ -160,7 +160,7 @@ export async function runLoop<S>(app: App<S>, opts: LoopOptions): Promise<LoopRe
   let errors = 0;
   const finish = (status: LoopResult['status'], reason: string): LoopResult => ({ status, reason, steps: run.step, history: run.history, trace });
   /** A step whose act() asked for outside input; continued by resume(). */
-  let suspended: { state: S; chosen: Chosen; candidate: Candidate; step: StepTrace; input?: string } | null = null;
+  let suspended: { state: S; chosen: Chosen; candidate: Candidate; step: StepTrace; inputs: string[] } | null = null;
 
   const continueLoop = async (): Promise<LoopResult> => {
   while (run.step < maxSteps) {
@@ -169,17 +169,22 @@ export async function runLoop<S>(app: App<S>, opts: LoopOptions): Promise<LoopRe
     let candidate: Candidate;
     let step: StepTrace;
     let textForStep: TextProvider | undefined = opts.text;
+    let resumeHeld: typeof suspended = null;
     if (suspended) {
       ({ state, chosen, candidate, step } = suspended);
-      // The value supplied from outside answers the first text request of the re-run act().
-      let pending: string | undefined = suspended.input;
+      // act() re-runs from the start: the values supplied so far answer its text requests in
+      // order, and the next request nobody has answered yet suspends again.
+      const supplied = suspended.inputs;
+      let i = 0;
       const inner = opts.text;
       textForStep = async (ctx) => {
-        if (pending !== undefined) { const v = pending; pending = undefined; return v; }
+        if (i < supplied.length) return supplied[i++];
         if (!inner) throw new NeedsInput(ctx);
         return inner(ctx);
       };
+      const held = suspended;
       suspended = null;
+      resumeHeld = held;
     } else {
     state = await app.observe();
 
@@ -337,14 +342,16 @@ export async function runLoop<S>(app: App<S>, opts: LoopOptions): Promise<LoopRe
       outcome = (await app.act(chosen, state, textForStep ?? (async (ctx) => { throw new NeedsInput(ctx); }))) || {};
     } catch (err: any) {
       if (err instanceof NeedsInput) {
-        suspended = { state, chosen, candidate, step };
+        // Keep the values already supplied for this step, so the next resume replays them.
+        const prior: string[] = resumeHeld ? resumeHeld.inputs : [];
+        suspended = { state, chosen, candidate, step, inputs: prior };
         const held = suspended;
         step.note = `waiting for input: ${JSON.stringify(err.request.field)}`;
         if (!trace.includes(step)) trace.push(step);
         return {
           ...finish('suspended', 'A value is needed from outside the loop.'),
           needsInput: err.request,
-          resume: (value: string) => { held.input = value; suspended = held; return continueLoop(); },
+          resume: (value: string) => { held.inputs = [...held.inputs, value]; suspended = held; return continueLoop(); },
         };
       }
       outcome = { error: err?.message || String(err) };

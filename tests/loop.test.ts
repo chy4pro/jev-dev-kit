@@ -206,6 +206,30 @@ describe('suspend and resume', () => {
     expect(jev).toHaveBeenCalledTimes(2); // the suspended step did not ask Jev again
   });
 
+  it('replays every supplied value in order when act asks for several', async () => {
+    const { app, w } = world();
+    const got: string[][] = [];
+    app.act = async (chosen, _s, text) => {
+      if (chosen.id === 'e1') {
+        const a = await text!({ goal: 'g', field: { name: 'source' } });
+        const b = await text!({ goal: 'g', field: { name: 'destination' } });
+        got.push([a, b]);
+        w.screen = 'moved';
+      }
+      return {};
+    };
+    const jev = vi.fn<JevClient>().mockResolvedValueOnce(answer('e1')).mockResolvedValueOnce(answer('DONE', {}, { goal: 0.9 }));
+    const s1 = await runLoop(app, { jev, model: 'm', maxSteps: 5 });
+    expect(s1.needsInput?.field).toEqual({ name: 'source' });
+    const s2 = await s1.resume!('a.txt');
+    expect(s2.status).toBe('suspended');
+    expect(s2.needsInput?.field).toEqual({ name: 'destination' });
+    const done = await s2.resume!('b.txt');
+    expect(done.status).toBe('done');
+    expect(got).toEqual([['a.txt', 'b.txt']]);
+    expect(jev).toHaveBeenCalledTimes(2);
+  });
+
   it('a text provider can also signal NeedsInput for values it cannot produce', async () => {
     const { app, w } = world();
     app.act = async (chosen, _s, text) => { if (chosen.id === 'e1') { await text!({ goal: 'g', field: { label: 'x' } }); w.screen = 'results'; } return {}; };
