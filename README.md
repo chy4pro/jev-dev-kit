@@ -1,6 +1,6 @@
-# jev-loop
+# jev-dev-kit
 
-A small framework for building agents on TypeSafe Jev. It fixes one rule that every working Jev project ends up following: **Jev only ever chooses.** Everything an agent does is expressed as a choice among candidates the program supplies; anything that has to be produced rather than chosen goes through an explicit callback.
+A small framework for building agents on TypeSafe Jev. Community project, not affiliated with TypeSafe. It fixes one rule that every working Jev project ends up following: **Jev only ever chooses.** Everything an agent does is expressed as a choice among candidates the program supplies; anything that has to be produced rather than chosen goes through an explicit callback.
 
 Two callbacks, both pluggable, both allowed to be code or a language model:
 

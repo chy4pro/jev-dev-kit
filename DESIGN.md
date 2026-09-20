@@ -2,7 +2,7 @@
 
 ## Why a framework
 
-The Jev projects that work (typesafe-mario, jev-plays-pokemon-red, jev-tetris, jev-doom-agent, the 3D room builder, jev-for-chrome) all rebuilt the same machinery: structured small state, code-enumerated candidates, fan-out of Choice/Noul/Score in one request, strict answer validation, a visible fallback, a stall counter fed back as a fact, and a trace. The primitives are trivial to call; the machinery around them is where the effort and the bugs are. jev-loop packages the machinery so a new app only writes its domain part.
+The Jev projects that work (typesafe-mario, jev-plays-pokemon-red, jev-tetris, jev-doom-agent, the 3D room builder, jev-for-chrome) all rebuilt the same machinery: structured small state, code-enumerated candidates, fan-out of Choice/Noul/Score in one request, strict answer validation, a visible fallback, a stall counter fed back as a fact, and a trace. The primitives are trivial to call; the machinery around them is where the effort and the bugs are. jev-dev-kit packages the machinery so a new app only writes its domain part.
 
 ## The contract an app implements
 
@@ -49,7 +49,7 @@ Many tasks are not loops but one fan-out: "which of these 200 items belong", "wh
 
 ## Evaluation
 
-`jev-loop eval` runs a task set and, for each, two controls: shuffled candidate order (should collapse to chance if Jev is doing the work) and a keyword-only picker over the same descriptions (Jev must beat it). Latency, cost and per-step traces are recorded in the same JSON the extension's Copy trace produces.
+`jev-dev-kit eval` runs a task set and, for each, two controls: shuffled candidate order (should collapse to chance if Jev is doing the work) and a keyword-only picker over the same descriptions (Jev must beat it). Latency, cost and per-step traces are recorded in the same JSON the extension's Copy trace produces.
 
 ## Providers
 
@@ -63,4 +63,4 @@ TypeSafe direct, OpenRouter (`typesafe/jev-1.13`), Cloudflare Workers AI; retrie
 
 ## Non-goals
 
-Free-form generation, planning across many steps, memory beyond the encoded history. If a task needs those, put a language model above jev-loop, not inside it.
+Free-form generation, planning across many steps, memory beyond the encoded history. If a task needs those, put a language model above jev-dev-kit, not inside it.

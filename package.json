@@ -1,5 +1,5 @@
 {
-  "name": "jev-loop",
+  "name": "jev-dev-kit",
   "version": "0.0.0",
   "description": "Framework for agents on TypeSafe Jev: Jev only chooses; candidates and text come through explicit providers; the loop, validation, fallbacks and traces are built in.",
   "license": "MIT",
