@@ -122,6 +122,17 @@ describe('runLoop', () => {
   });
 });
 
+describe('validateChoiceAnswer', () => {
+  it('rejects bad sums, unknown keys and argmax disagreement, tolerates two-decimal rounding', () => {
+    const allowed = ['A', 'B', 'C'];
+    expect(() => validateChoiceAnswer({ choice: 'A', probabilities: { A: 0.5, B: 0.1 } }, allowed)).toThrow(/sum/);
+    expect(() => validateChoiceAnswer({ choice: 'A', probabilities: { A: 0.5, Z: 0.5 } }, allowed)).toThrow(/unknown/);
+    expect(() => validateChoiceAnswer({ choice: 'A', probabilities: { A: 0.2, B: 0.8 } }, allowed)).toThrow(/higher probability/);
+    expect(validateChoiceAnswer({ choice: 'A', probabilities: { A: 0.49, B: 0.5, C: 0.01 } }, allowed).choice).toBe('A');
+    expect(validateChoiceAnswer({ choice: 'B', confidence: 0.7, probabilities: { B: 0.7, A: 0.3 } }, allowed)).toEqual({ choice: 'B', confidence: 0.7, probabilities: { B: 0.7, A: 0.3 } });
+  });
+});
+
 describe('batch and controls', () => {
   it('runs items concurrently and keeps errors per item', async () => {
     let calls = 0;

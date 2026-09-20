@@ -2,6 +2,8 @@ import { JevChoiceAnswer } from './types.js';
 
 /** Providers round probabilities to two decimals; the chosen candidate may trail the maximum by that much. */
 export const ROUNDING_TOLERANCE = 0.015;
+/** A distribution whose mass is off by more than this is rejected, not renormalised. */
+export const SUM_TOLERANCE = 0.02;
 
 const unit = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= 1;
 
@@ -22,10 +24,15 @@ export function validateChoiceAnswer(answer: any, candidates: Record<string, unk
   if (entries.length === 0 || !entries.every(([k, v]) => allowed.includes(k) && unit(v))) {
     throw new Error('Jev probabilities contain unknown candidates or invalid values.');
   }
-  const max = Math.max(...entries.map(([, v]) => v as number));
-  const own = (probabilities as Record<string, number>)[choice] ?? 0;
-  if (own + ROUNDING_TOLERANCE < max) {
-    throw new Error(`Jev chose "${choice}" (${own}) although another candidate has a higher probability (${max}).`);
+  const dist = probabilities as Record<string, number>;
+  if (!(choice in dist)) throw new Error(`Jev chose "${choice}" without assigning it a probability.`);
+  const sum = entries.reduce((acc, [, v]) => acc + (v as number), 0);
+  if (Math.abs(sum - 1) > SUM_TOLERANCE) throw new Error('Jev probabilities do not sum to 1.');
+  const max = Math.max(...Object.values(dist));
+  const own = dist[choice];
+  if (own < max - ROUNDING_TOLERANCE) {
+    const shown = Object.entries(dist).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, p]) => `${k}=${p}`).join(', ');
+    throw new Error(`Jev chose "${choice}" but a different candidate has a higher probability (${shown}).`);
   }
   const confidence = unit(answer.confidence) ? answer.confidence : own;
   return { choice, confidence, probabilities: probabilities as Record<string, number> };
