@@ -1,4 +1,4 @@
-import { JevChoiceAnswer } from './types';
+import { JevChoiceAnswer } from './types.js';
 
 /** Providers round probabilities to two decimals; the chosen candidate may trail the maximum by that much. */
 export const ROUNDING_TOLERANCE = 0.015;

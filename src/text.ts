@@ -1,5 +1,5 @@
-import { postJson } from './providers/http';
-import { openRouterHeaders } from './providers/index';
+import { postJson } from './providers/http.js';
+import { openRouterHeaders } from './providers/index.js';
 
 /**
  * Where a value that must be written (not chosen) comes from. Implementations: a small chat

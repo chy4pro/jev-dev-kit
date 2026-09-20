@@ -1,4 +1,4 @@
-import { Candidate, JevClient } from './types';
+import { Candidate, JevClient } from './types.js';
 
 /**
  * Controls that say whether Jev is doing the work (from the jev-tetris findings):

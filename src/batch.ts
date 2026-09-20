@@ -1,4 +1,4 @@
-import { JevClient, JevQuestions, JevResponse, JevState } from './types';
+import { JevClient, JevQuestions, JevResponse, JevState } from './types.js';
 
 export interface BatchItem {
   state: JevState;

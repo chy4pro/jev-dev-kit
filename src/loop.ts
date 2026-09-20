@@ -1,6 +1,6 @@
-import { Candidate, HistoryEntry, JevClient, JevQuestions, JevRequest, JevState } from './types';
-import { TextProvider } from './text';
-import { readNoul, validateChoiceAnswer } from './validate';
+import { Candidate, HistoryEntry, JevClient, JevQuestions, JevRequest, JevState } from './types.js';
+import { TextProvider } from './text.js';
+import { readNoul, validateChoiceAnswer } from './validate.js';
 
 // ---- The contract an app implements -------------------------------------------------------
 

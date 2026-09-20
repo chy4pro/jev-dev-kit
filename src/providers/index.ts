@@ -1,7 +1,7 @@
-import { JevClient, JevRequest, JevResponse } from '../types';
-import { postJson } from './http';
+import { JevClient, JevRequest, JevResponse } from '../types.js';
+import { postJson } from './http.js';
 
-export { postJson } from './http';
+export { postJson } from './http.js';
 
 export const DEFAULT_OPENROUTER_MODEL = 'typesafe/jev-1.13';
 export const DEFAULT_TYPESAFE_MODEL = 'jev-latest';
