@@ -1,5 +1,5 @@
 import { Candidate, HistoryEntry, JevClient, JevQuestions, JevRequest, JevState } from './types.js';
-import { TextProvider } from './text.js';
+import { TextContext, TextProvider } from './text.js';
 import { readNoul, validateChoiceAnswer } from './validate.js';
 
 // ---- The contract an app implements -------------------------------------------------------
@@ -90,12 +90,27 @@ export interface StepTrace {
   note?: string;
 }
 
+/**
+ * Thrown by a text provider (or by `act`) when the value has to come from outside the loop:
+ * the calling model in an MCP relay, a person at a prompt. The loop suspends and returns
+ * `status: 'suspended'` with the request and a `resume(value)` that continues the same step.
+ */
+export class NeedsInput extends Error {
+  constructor(public readonly request: TextContext) {
+    super('Input needed from outside the loop');
+    this.name = 'NeedsInput';
+  }
+}
+
 export interface LoopResult {
-  status: 'done' | 'blocked' | 'error' | 'stopped';
+  status: 'done' | 'blocked' | 'error' | 'stopped' | 'suspended';
   reason: string;
   steps: number;
   history: HistoryEntry[];
   trace: StepTrace[];
+  /** Present when suspended: what is being asked for, and how to continue. */
+  needsInput?: TextContext;
+  resume?: (value: string) => Promise<LoopResult>;
 }
 
 const DEFAULT_TERMINAL = {
@@ -131,9 +146,29 @@ export async function runLoop<S>(app: App<S>, opts: LoopOptions): Promise<LoopRe
   let retried = false;
   let errors = 0;
   const finish = (status: LoopResult['status'], reason: string): LoopResult => ({ status, reason, steps: run.step, history: run.history, trace });
+  /** A step whose act() asked for outside input; continued by resume(). */
+  let suspended: { state: S; chosen: Chosen; candidate: Candidate; step: StepTrace; input?: string } | null = null;
 
+  const continueLoop = async (): Promise<LoopResult> => {
   while (run.step < maxSteps) {
-    const state = await app.observe();
+    let state: S;
+    let chosen: Chosen;
+    let candidate: Candidate;
+    let step: StepTrace;
+    let textForStep: TextProvider | undefined = opts.text;
+    if (suspended) {
+      ({ state, chosen, candidate, step } = suspended);
+      // The value supplied from outside answers the first text request of the re-run act().
+      let pending: string | undefined = suspended.input;
+      const inner = opts.text;
+      textForStep = async (ctx) => {
+        if (pending !== undefined) { const v = pending; pending = undefined; return v; }
+        if (!inner) throw new NeedsInput(ctx);
+        return inner(ctx);
+      };
+      suspended = null;
+    } else {
+    state = await app.observe();
 
     // 1. Outcome of the previous action, from the fingerprint unless the app said more.
     const fp = app.fingerprint ? app.fingerprint(state) : JSON.stringify(app.encode(state, run));
@@ -225,7 +260,7 @@ export async function runLoop<S>(app: App<S>, opts: LoopOptions): Promise<LoopRe
     const goalDone = readNoul(response.answers?.goal_done);
     const stuck = readNoul(response.answers?.stuck);
     const choice = primaryAnswer.choice;
-    const step: StepTrace = { step: run.step + 1, request, answers, chosen: choice, confidence: primaryAnswer.confidence, goalDone, stuck, latencyMs, via: answers.via === 'fallback' ? 'fallback' : 'jev' };
+    const stepTrace: StepTrace = { step: run.step + 1, request, answers, chosen: choice, confidence: primaryAnswer.confidence, goalDone, stuck, latencyMs, via: answers.via === 'fallback' ? 'fallback' : 'jev' };
 
     // 6. Terminal candidates: vetoed once by the cross-check, confirmed once when hesitant.
     if (choice in terminal) {
@@ -237,21 +272,21 @@ export async function runLoop<S>(app: App<S>, opts: LoopOptions): Promise<LoopRe
         run.notice = isDone
           ? `DONE was withheld: the goal check rates the task as not achieved (${Math.round(cross * 100)}%). Continue, or choose DONE again only if the state truly satisfies every requirement.`
           : `BLOCKED was withheld: the stuck check does not agree (${Math.round(cross * 100)}%). Try another candidate.`;
-        step.note = `${choice} vetoed by cross-check (${cross})`;
-        trace.push(step);
-        opts.onStep?.(step);
+        stepTrace.note = `${choice} vetoed by cross-check (${cross})`;
+        trace.push(stepTrace);
+        opts.onStep?.(stepTrace);
         continue;
       }
       if (primaryAnswer.confidence < th.terminalConfirm && pendingTerminal !== choice) {
         pendingTerminal = choice;
         run.notice = `${choice} was chosen with low confidence (${Math.round(primaryAnswer.confidence * 100)}%). Confirm it, or continue with another candidate.`;
-        step.note = `${choice} needs confirmation`;
-        trace.push(step);
-        opts.onStep?.(step);
+        stepTrace.note = `${choice} needs confirmation`;
+        trace.push(stepTrace);
+        opts.onStep?.(stepTrace);
         continue;
       }
-      trace.push(step);
-      opts.onStep?.(step);
+      trace.push(stepTrace);
+      opts.onStep?.(stepTrace);
       return finish(isDone ? 'done' : 'blocked', isDone ? 'Jev reported the task complete.' : 'Jev reported no way forward.');
     }
     pendingTerminal = null;
@@ -260,25 +295,40 @@ export async function runLoop<S>(app: App<S>, opts: LoopOptions): Promise<LoopRe
     // 7. Repetition: same candidate too often within the window; warn first, then stop.
     const repeats = run.history.slice(-lim.repeatWindow).filter((h) => h.id === choice && !passive.has(h.id)).length;
     if (repeats >= lim.repeatLimit) {
-      trace.push(step);
-      opts.onStep?.(step);
+      trace.push(stepTrace);
+      opts.onStep?.(stepTrace);
       return finish('blocked', `"${choice}" was chosen ${repeats + 1} times within ${lim.repeatWindow} steps without reaching the goal.`);
     }
     if (repeats === lim.repeatLimit - 1) {
       run.notice = `"${choice}" has already been chosen ${repeats} times recently without finishing the task. Prefer a different candidate unless it is clearly the only way.`;
     }
 
+    candidate = candidatesByDecision[primaryKey].find((c) => c.id === choice)!;
+    chosen = { id: choice, candidate, confidence: primaryAnswer.confidence, probabilities: primaryAnswer.probabilities, answers };
+    step = stepTrace;
+    if (!textForStep) textForStep = undefined;
+    } // end of the observe/ask branch
+
     // 8. Act.
-    const candidate = candidatesByDecision[primaryKey].find((c) => c.id === choice)!;
-    const chosen: Chosen = { id: choice, candidate, confidence: primaryAnswer.confidence, probabilities: primaryAnswer.probabilities, answers };
     let outcome: Outcome = {};
     try {
-      outcome = (await app.act(chosen, state, opts.text)) || {};
+      outcome = (await app.act(chosen, state, textForStep ?? (async (ctx) => { throw new NeedsInput(ctx); }))) || {};
     } catch (err: any) {
+      if (err instanceof NeedsInput) {
+        suspended = { state, chosen, candidate, step };
+        const held = suspended;
+        step.note = `waiting for input: ${JSON.stringify(err.request.field)}`;
+        if (!trace.includes(step)) trace.push(step);
+        return {
+          ...finish('suspended', 'A value is needed from outside the loop.'),
+          needsInput: err.request,
+          resume: (value: string) => { held.input = value; suspended = held; return continueLoop(); },
+        };
+      }
       outcome = { error: err?.message || String(err) };
     }
     run.step++;
-    const entry: HistoryEntry = { step: run.step, id: choice, label: typeof candidate.description === 'string' ? `${choice}: ${candidate.description}`.slice(0, 120) : choice, text: outcome.text };
+    const entry: HistoryEntry = { step: run.step, id: chosen.id, label: typeof candidate.description === 'string' ? `${chosen.id}: ${candidate.description}`.slice(0, 120) : chosen.id, text: outcome.text };
     if (outcome.error) {
       errors++;
       entry.outcome = `error: ${outcome.error}`;
@@ -287,7 +337,7 @@ export async function runLoop<S>(app: App<S>, opts: LoopOptions): Promise<LoopRe
       if (errors >= lim.consecutiveErrors) {
         run.history.push(entry);
         step.outcome = entry.outcome;
-        trace.push(step);
+        if (!trace.includes(step)) trace.push(step);
         opts.onStep?.(step);
         return finish('error', `${errors} consecutive actions failed; last: ${outcome.error}`);
       }
@@ -297,9 +347,11 @@ export async function runLoop<S>(app: App<S>, opts: LoopOptions): Promise<LoopRe
     }
     run.history.push(entry);
     step.outcome = entry.outcome;
-    trace.push(step);
+    if (!trace.includes(step)) trace.push(step);
     opts.onStep?.(step);
     if (outcome.done) return finish('done', 'The app verified the task is complete.');
   }
   return finish('blocked', `Reached the ${maxSteps}-step budget.`);
+  };
+  return continueLoop();
 }

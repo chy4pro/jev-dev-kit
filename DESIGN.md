@@ -43,6 +43,10 @@ interface App<S> {
 5. `act`, then record the worded outcome (`page changed`, `no visible change`, `navigated to …`, `error: …`) into the history that the next `encode` sees. Jev has no memory; the history is the memory.
 6. Loop control: consecutive no-change limit, same-choice-N-times-in-M-steps limit, decision budget, model-call budget. Every stop reason is a code, every fallback is labelled `via: 'fallback'` in the trace, never disguised as a decision.
 
+## Suspension
+
+A step can stop half-way when a value must come from outside: the text provider (or `act`) throws `NeedsInput(request)`; `runLoop` returns `status: 'suspended'` with the request and a `resume(value)`. Resuming re-runs `act` for the same chosen candidate with the value answering its first text request; Jev is not asked again. State lives in the closure, so a relay keeps the result object in a session map and calls `resume` when the client comes back.
+
 ## Batch mode
 
 Many tasks are not loops but one fan-out: "which of these 200 items belong", "where does each of these go". `runBatch(items, decisions)` sends all questions in as few requests as the provider allows and returns the distributions. No history, no loop control, just validation and tracing. The 3D room builder is this mode.

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { App, Candidate, JevClient, JevResponse, keywordClient, runBatch, runLoop, shufflingClient, validateChoiceAnswer } from '../src/index';
+import { App, Candidate, JevClient, JevResponse, NeedsInput, keywordClient, runBatch, runLoop, shufflingClient, validateChoiceAnswer } from '../src/index';
 
 interface World { screen: string; items: string[]; done: boolean }
 
@@ -155,5 +155,45 @@ describe('batch and controls', () => {
 
     const base = await keywordClient()({ model: 'm', state: { task: 'open the pricing page' }, questions: { action: { type: 'choice', criteria: { e1: 'Click Docs', e2: 'Click Pricing' }, instructions: '' } } });
     expect(validateChoiceAnswer(base.answers.action, ['e1', 'e2']).choice).toBe('e2');
+  });
+});
+
+describe('suspend and resume', () => {
+  it('suspends when act needs outside input, and resume continues the same step with the value', async () => {
+    const { app, acted, w } = world();
+    const typed: string[] = [];
+    app.act = async (chosen, _s, text) => {
+      acted.push(chosen.id);
+      if (chosen.id === 'e1') {
+        const value = await text!({ goal: 'Search for shoes', field: { label: 'Search box' } });
+        typed.push(value);
+        w.screen = 'results';
+      }
+      return {};
+    };
+    const jev = vi.fn<JevClient>().mockResolvedValueOnce(answer('e1')).mockResolvedValueOnce(answer('DONE', {}, { goal: 0.9 }));
+    const first = await runLoop(app, { jev, model: 'm', maxSteps: 5 }); // no text provider: every text request suspends
+
+    expect(first.status).toBe('suspended');
+    expect(first.needsInput).toEqual({ goal: 'Search for shoes', field: { label: 'Search box' } });
+    expect(first.steps).toBe(0);
+    expect(first.trace.at(-1)?.note).toMatch(/waiting for input/);
+    expect(typed).toEqual([]);
+
+    const done = await first.resume!('running shoes');
+    expect(done.status).toBe('done');
+    expect(typed).toEqual(['running shoes']);
+    expect(acted).toEqual(['e1', 'e1']); // act re-runs once with the value in hand
+    expect(done.history[0]).toMatchObject({ id: 'e1', changed: true });
+    expect(jev).toHaveBeenCalledTimes(2); // the suspended step did not ask Jev again
+  });
+
+  it('a text provider can also signal NeedsInput for values it cannot produce', async () => {
+    const { app, w } = world();
+    app.act = async (chosen, _s, text) => { if (chosen.id === 'e1') { await text!({ goal: 'g', field: { label: 'x' } }); w.screen = 'results'; } return {}; };
+    const jev = vi.fn<JevClient>().mockResolvedValueOnce(answer('e1')).mockResolvedValueOnce(answer('DONE', {}, { goal: 0.9 }));
+    const r = await runLoop(app, { jev, model: 'm', maxSteps: 5, text: async (ctx) => { throw new NeedsInput(ctx); } });
+    expect(r.status).toBe('suspended');
+    expect((await r.resume!('v')).status).toBe('done');
   });
 });
