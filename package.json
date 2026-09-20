@@ -1,0 +1,9 @@
+{
+  "name": "jev-loop",
+  "version": "0.0.0",
+  "description": "Framework for agents on TypeSafe Jev: Jev only chooses; candidates and text come through explicit providers; the loop, validation, fallbacks and traces are built in.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "keywords": ["jev", "typesafe", "decision-model", "agent-framework", "system-one"]
+}
