@@ -58,7 +58,6 @@ The kit never talks to the network. `JevClient` is a function type; the app supp
 ## Consumers
 
 - jev-for-chrome: `observe` = content-script snapshot; `options` = element table; `act` = trusted input; `text` = text helper. Its `src/shared` moves here.
-- jev-in-mcp: `options` = an MCP server's tools with adapter-written consequence sentences; `act` = tool call; `text` = word highlighting over goal and prior results, then a small model.
 - Anything else: a game, a triage queue, a scene builder.
 
 ## Non-goals

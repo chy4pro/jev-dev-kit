@@ -68,7 +68,7 @@ Also included: `runBatch` for fan-out judgments without a loop, and `shufflingCl
 
 ## Status
 
-0.2.0. The first consumer is [jev-for-chrome](https://github.com/chy4pro/jev-for-chrome), whose shared code this package grew out of; jev-in-mcp is the second. See [DESIGN.md](DESIGN.md) for the contract and the reasoning behind it.
+0.2.0. The first consumer is [jev-for-chrome](https://github.com/chy4pro/jev-for-chrome), whose shared code this package grew out of. See [DESIGN.md](DESIGN.md) for the contract and the reasoning behind it.
 
 ## License
 
