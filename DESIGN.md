@@ -55,10 +55,14 @@ Many tasks are not loops but one fan-out: "which of these 200 items belong", "wh
 
 The kit never talks to the network. `JevClient` is a function type; the app supplies it (TypeSafe's SDK, OpenRouter, Cloudflare, a cache, a fixture). The same holds for the text callback: the kit defines `TextProvider` and the reply format (`parseFieldText`), the app decides which model or code answers. This keeps the kit's job to one thing: making inputs and outputs valid for Jev.
 
+## MCP
+
+`src/mcp.ts` is the one built-in domain: an MCP server's tool list is the only generally available candidate structure, so the kit turns it into Jev form itself. Tool → candidate; enum/boolean parameter → optional choice decision named `tool__param` (fan-out, like the extension's per-operation target heads); string/number parameter → text callback plus type conversion; object/array required parameter → tool excluded with a reason; result → bounded text and the fingerprint. Quality still depends on descriptions: the default sentence comes from the tool's own description and parameter list, and `describe` lets an adapter replace it with consequence-first wording.
+
 ## Consumers
 
 - jev-for-chrome: `observe` = content-script snapshot; `options` = element table; `act` = trusted input; `text` = text helper. Its `src/shared` moves here.
-- jev-in-mcp: `options` = an MCP server's tools with adapter-written consequence sentences; `act` = tool call; `text` = word highlighting over goal and prior results, then a small model.
+- jev-in-mcp: the gateway; `mcpApp` per downstream server, with adapter-written `describe` where the server's own descriptions are not enough.
 - Anything else: a game, a triage queue, a scene builder.
 
 ## Non-goals

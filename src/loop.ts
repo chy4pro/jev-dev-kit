@@ -12,6 +12,14 @@ export interface Decision<S> {
   options?: (state: S) => Promise<Candidate[]> | Candidate[];
   /** What Jev should weigh for this decision. */
   rules: string | Record<string, unknown>;
+  /**
+   * An answer that fails validation is dropped (undefined) instead of rejecting the whole step.
+   * For decisions that only matter when a particular primary candidate is chosen (a tool's
+   * parameter), so an unusable answer for an unchosen tool never stalls the loop.
+   */
+  optional?: boolean;
+  /** Skip this decision this step (e.g. no candidates); it is then absent from the request. */
+  when?: (state: S) => boolean;
 }
 
 export interface Chosen {
@@ -162,6 +170,7 @@ export async function runLoop<S>(app: App<S>, opts: LoopOptions): Promise<LoopRe
     const candidatesByDecision: Record<string, Candidate[]> = {};
     const questions: JevQuestions = {};
     for (const [name, d] of Object.entries(app.decisions)) {
+      if (name !== primaryKey && d.when && !d.when(state)) continue;
       const list = [...(d.fixed || []), ...(d.options ? await d.options(state) : [])];
       if (name === primaryKey) for (const [id, description] of Object.entries(terminal)) list.push({ id, description });
       candidatesByDecision[name] = list;
@@ -201,9 +210,15 @@ export async function runLoop<S>(app: App<S>, opts: LoopOptions): Promise<LoopRe
       primaryAnswer = validateChoiceAnswer(response.answers?.[primaryKey], candidatesByDecision[primaryKey].map((c) => c.id));
       answers[primaryKey] = primaryAnswer;
       for (const [name, d] of Object.entries(app.decisions)) {
-        if (name === primaryKey) continue;
-        if (d.kind === 'choice') answers[name] = validateChoiceAnswer(response.answers?.[name], candidatesByDecision[name].map((c) => c.id));
-        else if (d.kind === 'noul') answers[name] = readNoul(response.answers?.[name]);
+        if (name === primaryKey || !(name in candidatesByDecision)) continue;
+        if (d.kind === 'choice') {
+          try {
+            answers[name] = validateChoiceAnswer(response.answers?.[name], candidatesByDecision[name].map((c) => c.id));
+          } catch (err) {
+            if (!d.optional) throw err;
+            answers[name] = undefined;
+          }
+        } else if (d.kind === 'noul') answers[name] = readNoul(response.answers?.[name]);
         else answers[name] = response.answers?.[name]?.score;
       }
     } catch (err: any) {

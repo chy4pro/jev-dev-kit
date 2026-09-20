@@ -1,6 +1,6 @@
 {
   "name": "jev-dev-kit",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Framework for agents on TypeSafe Jev: turns candidates into valid Jev questions and answers into validated choices; the loop, cross-checks, fallbacks and traces are built in. No network code.",
   "license": "MIT",
   "type": "module",
@@ -18,7 +18,7 @@
     "prepare": "npm run build"
   },
   "repository": { "type": "git", "url": "https://github.com/chy4pro/jev-dev-kit.git" },
-  "keywords": ["jev", "typesafe", "decision-model", "agent-framework", "system-one", "agent", "browser-agent"],
+  "keywords": ["jev", "typesafe", "decision-model", "agent-framework", "system-one", "agent", "browser-agent", "mcp", "model-context-protocol"],
   "engines": { "node": ">=20" },
   "devDependencies": {
     "typescript": "^5.9.3",
