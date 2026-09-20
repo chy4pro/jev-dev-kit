@@ -14,7 +14,7 @@ It contains no network code. You hand it a `JevClient`, which is any `(request) 
 ## Install
 
 ```bash
-npm install github:chy4pro/jev-dev-kit#v0.3.0
+npm install github:chy4pro/jev-dev-kit#v0.2.0
 ```
 
 Node 20+, TypeScript types included. Not on npm yet.
@@ -66,37 +66,9 @@ What the runtime does on every step: observe, let `routine` handle code-owned st
 
 Also included: `runBatch` for fan-out judgments without a loop, and `shufflingClient` and `keywordClient` as the two controls that show whether Jev is doing the work.
 
-## An MCP server as a Jev app
-
-Give `mcpApp` a connected MCP client (the official SDK's `Client`, or anything with `listTools` and `callTool`) and the whole server becomes Jev-legal:
-
-```ts
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { mcpApp, runLoop } from 'jev-dev-kit';
-
-const client = new Client({ name: 'jev-agent', version: '1.0.0' });
-await client.connect(new StdioClientTransport({ command: 'python', args: ['my_server.py'] }));
-
-const { app, offered, excluded } = await mcpApp({ goal: 'Play Blinding Lights on the speaker and set repeat to one', client });
-console.log(offered.map((t) => t.name), excluded); // tools Jev can drive, and why the others were left out
-
-const result = await runLoop(app, { jev, model: 'typesafe/jev-1.13', text, maxSteps: 10 });
-```
-
-What the conversion does:
-
-- every tool is a candidate of the primary choice, described as what it does and what it takes (`Play a song. Takes title: string, artist?: string, device? (speaker|headphones)`);
-- enum and boolean parameters become choices, asked in the same request for every offered tool; only the chosen tool's answers are used, and an unusable answer for an unchosen tool never stalls the step;
-- string, number and integer parameters come through your `text` callback and are type-checked; a bad number or a missing required value is an action error the loop feeds back, never a guess;
-- a tool with a required parameter Jev cannot express (an object, an array) is not offered, and `excluded` says why;
-- results become bounded text in the state (`resultChars`, default 800) and the last result is the change fingerprint.
-
-The pieces are exported separately (`mcpDecisions`, `planParameters`, `describeTool`, `resolveArguments`, `describeResult`) for apps that want to compose them differently, for example to add hand-written consequence sentences for a server's tools.
-
 ## Status
 
-0.3.0. The first consumer is [jev-for-chrome](https://github.com/chy4pro/jev-for-chrome), whose shared code this package grew out of; jev-in-mcp is the second. See [DESIGN.md](DESIGN.md) for the contract and the reasoning behind it.
+0.2.0. The first consumer is [jev-for-chrome](https://github.com/chy4pro/jev-for-chrome), whose shared code this package grew out of; jev-in-mcp is the second. See [DESIGN.md](DESIGN.md) for the contract and the reasoning behind it.
 
 ## License
 
