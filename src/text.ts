@@ -1,9 +1,8 @@
-import { postJson } from './providers/http.js';
-import { openRouterHeaders } from './providers/index.js';
-
 /**
- * Where a value that must be written (not chosen) comes from. Implementations: a small chat
- * model, a table, a regex over the goal. The runtime never guesses text itself.
+ * Where a value that must be written (not chosen) comes from. Implementations live in the app:
+ * a small chat model, a table, a regex over the goal. The runtime never guesses text itself.
+ * `parseFieldText` is the format contract for a model-backed implementation: the model must
+ * answer {"text": "<value>"} or {"text": null}; anything else is rejected, never written.
  */
 export type TextProvider = (context: TextContext) => Promise<string>;
 
@@ -37,42 +36,4 @@ export function parseFieldText(rawContent: string): string {
     throw new Error('Text provider returned an invalid value; nothing written.');
   }
   return value;
-}
-
-export interface ChatTextOptions {
-  baseUrl: string; // OpenAI-compatible root, e.g. https://api.deepseek.com/v1
-  apiKey: string;
-  model: string;
-  referer?: string;
-  title?: string;
-  systemPrompt?: string;
-}
-
-/** A small OpenAI-compatible chat model as the text provider (DeepSeek, OpenRouter, OpenAI, ...). */
-export function chatText(opts: ChatTextOptions): TextProvider {
-  const baseUrl = opts.baseUrl.replace(/\/+$/, '');
-  const isOpenRouter = baseUrl.includes('openrouter.ai');
-  const isDeepSeek = baseUrl.includes('api.deepseek.com');
-  return async (context) => {
-    if (!(opts.apiKey || '').trim()) throw new Error('Text provider has no API key; nothing written.');
-    const payload: Record<string, unknown> = {
-      model: opts.model,
-      max_tokens: 1024,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: opts.systemPrompt || TEXT_VALUE_PROMPT },
-        { role: 'user', content: JSON.stringify(context) },
-      ],
-      ...(isDeepSeek ? { thinking: { type: 'disabled' } } : {}),
-    };
-    const json = await postJson(
-      `${baseUrl}/chat/completions`,
-      { Authorization: `Bearer ${opts.apiKey.trim()}`, ...(isOpenRouter ? openRouterHeaders(opts) : {}) },
-      payload,
-      { label: 'Text provider' }
-    );
-    const raw = json?.choices?.[0]?.message?.content;
-    if (typeof raw !== 'string' || !raw.trim()) throw new Error('Text provider returned an empty message; nothing written.');
-    return parseFieldText(raw);
-  };
 }

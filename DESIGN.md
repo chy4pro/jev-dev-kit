@@ -51,9 +51,9 @@ Many tasks are not loops but one fan-out: "which of these 200 items belong", "wh
 
 `jev-dev-kit eval` runs a task set and, for each, two controls: shuffled candidate order (should collapse to chance if Jev is doing the work) and a keyword-only picker over the same descriptions (Jev must beat it). Latency, cost and per-step traces are recorded in the same JSON the extension's Copy trace produces.
 
-## Providers
+## No providers
 
-TypeSafe direct, OpenRouter (`typesafe/jev-1.13`), Cloudflare Workers AI; retries with backoff on 429/503; pinned model versions recorded in every trace.
+The kit never talks to the network. `JevClient` is a function type; the app supplies it (TypeSafe's SDK, OpenRouter, Cloudflare, a cache, a fixture). The same holds for the text callback: the kit defines `TextProvider` and the reply format (`parseFieldText`), the app decides which model or code answers. This keeps the kit's job to one thing: making inputs and outputs valid for Jev.
 
 ## Consumers
 

@@ -1,6 +1,5 @@
 export * from './types.js';
 export * from './validate.js';
-export * from './providers/index.js';
 export * from './text.js';
 export * from './loop.js';
 export * from './batch.js';
