@@ -158,6 +158,24 @@ describe('batch and controls', () => {
   });
 });
 
+describe('optional decisions and action keys', () => {
+  it('drops an unusable optional answer instead of rejecting the step, and counts repeats by actionKey', async () => {
+    const { app, w } = world();
+    app.decisions.flavour = { kind: 'choice', optional: true, fixed: [{ id: 'a', description: 'a' }, { id: 'b', description: 'b' }], rules: 'x' };
+    app.actionKey = (c) => `${c.id}/${(c.answers.flavour as any)?.choice ?? '-'}`;
+    app.act = async (chosen) => { w.screen = w.screen === 'home' ? 'menu' : 'home'; return { note: chosen.id }; };
+    const bad = { choice: 'zzz', probabilities: { zzz: 1 } };
+    const jev = vi.fn<JevClient>()
+      .mockResolvedValueOnce(answer('e2', { flavour: bad }))
+      .mockResolvedValueOnce(answer('e2', { flavour: { choice: 'a', confidence: 1, probabilities: { a: 1 } } }))
+      .mockResolvedValueOnce(answer('DONE', {}, { goal: 0.9 }));
+    const r = await runLoop(app, { jev, model: 'm', maxSteps: 5 });
+    expect(r.status).toBe('done');
+    expect(r.history.map((h) => h.id)).toEqual(['e2/-', 'e2/a']);
+    expect(r.trace[0].answers?.flavour).toBeUndefined();
+  });
+});
+
 describe('suspend and resume', () => {
   it('suspends when act needs outside input, and resume continues the same step with the value', async () => {
     const { app, acted, w } = world();

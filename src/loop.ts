@@ -12,6 +12,14 @@ export interface Decision<S> {
   options?: (state: S) => Promise<Candidate[]> | Candidate[];
   /** What Jev should weigh for this decision. */
   rules: string | Record<string, unknown>;
+  /**
+   * An answer that fails validation is dropped (undefined) instead of rejecting the step. For
+   * decisions that only matter when a particular primary candidate is chosen (a tool's
+   * parameter, a per-operation target), so a bad answer for an unchosen branch never stalls.
+   */
+  optional?: boolean;
+  /** Leave this decision out of the request this step (no candidates, not applicable). */
+  when?: (state: S) => boolean;
 }
 
 export interface Chosen {
@@ -56,6 +64,11 @@ export interface App<S> {
   routine?(state: S): Promise<boolean> | boolean;
   /** Identity of what the model sees; when it does not change after an action, the action did nothing. */
   fingerprint?(state: S): string;
+  /**
+   * Identity of an action for repetition detection and the history, when the primary id alone
+   * is too coarse (a two-stage choice where the primary is a group and a secondary picks the item).
+   */
+  actionKey?(chosen: Chosen): string;
 }
 
 // ---- Runtime options ---------------------------------------------------------------------
@@ -197,6 +210,7 @@ export async function runLoop<S>(app: App<S>, opts: LoopOptions): Promise<LoopRe
     const candidatesByDecision: Record<string, Candidate[]> = {};
     const questions: JevQuestions = {};
     for (const [name, d] of Object.entries(app.decisions)) {
+      if (name !== primaryKey && d.when && !d.when(state)) continue;
       const list = [...(d.fixed || []), ...(d.options ? await d.options(state) : [])];
       if (name === primaryKey) for (const [id, description] of Object.entries(terminal)) list.push({ id, description });
       candidatesByDecision[name] = list;
@@ -236,9 +250,15 @@ export async function runLoop<S>(app: App<S>, opts: LoopOptions): Promise<LoopRe
       primaryAnswer = validateChoiceAnswer(response.answers?.[primaryKey], candidatesByDecision[primaryKey].map((c) => c.id));
       answers[primaryKey] = primaryAnswer;
       for (const [name, d] of Object.entries(app.decisions)) {
-        if (name === primaryKey) continue;
-        if (d.kind === 'choice') answers[name] = validateChoiceAnswer(response.answers?.[name], candidatesByDecision[name].map((c) => c.id));
-        else if (d.kind === 'noul') answers[name] = readNoul(response.answers?.[name]);
+        if (name === primaryKey || !(name in candidatesByDecision)) continue;
+        if (d.kind === 'choice') {
+          try {
+            answers[name] = validateChoiceAnswer(response.answers?.[name], candidatesByDecision[name].map((c) => c.id));
+          } catch (err) {
+            if (!d.optional) throw err;
+            answers[name] = undefined;
+          }
+        } else if (d.kind === 'noul') answers[name] = readNoul(response.answers?.[name]);
         else answers[name] = response.answers?.[name]?.score;
       }
     } catch (err: any) {
@@ -292,15 +312,17 @@ export async function runLoop<S>(app: App<S>, opts: LoopOptions): Promise<LoopRe
     pendingTerminal = null;
     vetoed = null;
 
-    // 7. Repetition: same candidate too often within the window; warn first, then stop.
-    const repeats = run.history.slice(-lim.repeatWindow).filter((h) => h.id === choice && !passive.has(h.id)).length;
+    // 7. Repetition: same action too often within the window; warn first, then stop.
+    const candidateNow = candidatesByDecision[primaryKey].find((c) => c.id === choice)!;
+    const keyNow = app.actionKey ? app.actionKey({ id: choice, candidate: candidateNow, confidence: primaryAnswer.confidence, probabilities: primaryAnswer.probabilities, answers }) : choice;
+    const repeats = run.history.slice(-lim.repeatWindow).filter((h) => h.id === keyNow && !passive.has(h.id)).length;
     if (repeats >= lim.repeatLimit) {
       trace.push(stepTrace);
       opts.onStep?.(stepTrace);
-      return finish('blocked', `"${choice}" was chosen ${repeats + 1} times within ${lim.repeatWindow} steps without reaching the goal.`);
+      return finish('blocked', `"${keyNow}" was chosen ${repeats + 1} times within ${lim.repeatWindow} steps without reaching the goal.`);
     }
     if (repeats === lim.repeatLimit - 1) {
-      run.notice = `"${choice}" has already been chosen ${repeats} times recently without finishing the task. Prefer a different candidate unless it is clearly the only way.`;
+      run.notice = `"${keyNow}" has already been chosen ${repeats} times recently without finishing the task. Prefer a different candidate unless it is clearly the only way.`;
     }
 
     candidate = candidatesByDecision[primaryKey].find((c) => c.id === choice)!;
@@ -328,7 +350,8 @@ export async function runLoop<S>(app: App<S>, opts: LoopOptions): Promise<LoopRe
       outcome = { error: err?.message || String(err) };
     }
     run.step++;
-    const entry: HistoryEntry = { step: run.step, id: chosen.id, label: typeof candidate.description === 'string' ? `${chosen.id}: ${candidate.description}`.slice(0, 120) : chosen.id, text: outcome.text };
+    const key = app.actionKey ? app.actionKey(chosen) : chosen.id;
+    const entry: HistoryEntry = { step: run.step, id: key, label: typeof candidate.description === 'string' ? `${key}: ${candidate.description}`.slice(0, 120) : key, text: outcome.text };
     if (outcome.error) {
       errors++;
       entry.outcome = `error: ${outcome.error}`;
