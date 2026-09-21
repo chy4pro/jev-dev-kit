@@ -1,6 +1,6 @@
 {
   "name": "jev-dev-kit",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Framework for agents on TypeSafe Jev: turns candidates into valid Jev questions and answers into validated choices; the loop, cross-checks, fallbacks and traces are built in. No network code.",
   "license": "MIT",
   "type": "module",

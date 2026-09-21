@@ -34,7 +34,11 @@ interface App<S> {
 
 `OptionsProvider` implementations: a function (most apps), or a language model asked once per new environment to enumerate and describe candidates, cached.
 
-## What the runtime does every step
+## The unit: one decision
+
+`Decider` is one Jev decision with everything around it, independent of scheduling: `observe(state)` settles the previous action's outcome from the fingerprint and reports a deadlock; `prepare(state)` builds the request; `accept(response)` validates and judges it and says what to do (chosen, retry, ask again, stop); `record(chosen, outcome)` writes the history, counts errors, and reports a verified completion. Runtimes compose it. This split came from jev-realtime-sdk: a two-tick loop could not reuse a runtime that waits on Jev inside each step, but it needs every piece of the decision machinery unchanged.
+
+## What `runLoop` does every step
 
 1. `routine` first. If code can handle the step, Jev is not asked (Pokémon: no questions between the bedroom and the lab).
 2. `observe` → `options` for each decision → `encode` → one request with every question in it, plus two standing cross-checks: `goal_done` and `stuck` (Noul), answered without seeing the main choice.

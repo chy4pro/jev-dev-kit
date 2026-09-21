@@ -14,7 +14,7 @@ It contains no network code. You hand it a `JevClient`, which is any `(request) 
 ## Install
 
 ```bash
-npm install github:chy4pro/jev-dev-kit#v0.3.2
+npm install github:chy4pro/jev-dev-kit#v0.4.0
 ```
 
 Node 20+, TypeScript types included. Not on npm yet.
@@ -62,7 +62,9 @@ const result = await runLoop(app, {
 console.log(result.status, result.reason, result.trace);
 ```
 
-What the runtime does on every step: observe, let `routine` handle code-owned steps, collect candidates, send one request with every decision plus the standing `goal_done` and `stuck` checks, validate the answers strictly (an unknown candidate or a self-contradicting distribution is asked once more, then falls back visibly), withhold a DONE or BLOCKED the cross-check does not support, act, record the worded outcome into the history the next request sees, and stop on a terminal choice, a verified completion, a budget, three no-change actions, a repeated choice, or three failed actions in a row.
+The unit of the kit is one decision, `Decider`: it builds the request (candidates, rules, the standing `goal_done` and `stuck` checks, notices about the last step), accepts the answer (strict validation, one retry, veto of an unsupported DONE or BLOCKED, confirmation of a hesitant one, repetition limit, a declared fallback) and keeps the memory across decisions (history with worded outcomes, no-change and error counters, the trace). Runtimes schedule decisions: `runLoop` here asks, waits and acts in lockstep; a real-time runtime ([jev-realtime-sdk](https://github.com/chy4pro/jev-realtime-sdk)) asks on its own tick while an inner loop keeps applying the held action. Both use the same `Decider`.
+
+What `runLoop` does on every step: observe, let `routine` handle code-owned steps, collect candidates, send one request with every decision plus the standing `goal_done` and `stuck` checks, validate the answers strictly (an unknown candidate or a self-contradicting distribution is asked once more, then falls back visibly), withhold a DONE or BLOCKED the cross-check does not support, act, record the worded outcome into the history the next request sees, and stop on a terminal choice, a verified completion, a budget, three no-change actions, a repeated choice, or three failed actions in a row.
 
 When a value has to come from outside the loop (the calling model in an MCP relay, a person at a prompt), the text provider or `act` throws `NeedsInput`; the loop returns `status: 'suspended'` with the request, and `resume(value)` continues the same step without asking Jev again.
 
@@ -70,7 +72,7 @@ Also included: `runBatch` for fan-out judgments without a loop, and `shufflingCl
 
 ## Status
 
-0.3.2. The first consumer is [jev-for-chrome](https://github.com/chy4pro/jev-for-chrome), whose shared code this package grew out of. See [DESIGN.md](DESIGN.md) for the contract and the reasoning behind it.
+0.4.0. The first consumer is [jev-for-chrome](https://github.com/chy4pro/jev-for-chrome), whose shared code this package grew out of. See [DESIGN.md](DESIGN.md) for the contract and the reasoning behind it.
 
 ## License
 
